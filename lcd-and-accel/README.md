@@ -9,8 +9,8 @@
     - [x] pass in to liquid crystal library
 - [x] control H-bridge
     - [x] pwm
-- [ ] Kalman filter
-- [ ] get it to rotate when not flat
+- [x] Kalman filter
+- [x] get it to rotate when not flat
 - [ ] hook up pins for 2 motors
 
 - [ ] implement feedback system for wheel controls

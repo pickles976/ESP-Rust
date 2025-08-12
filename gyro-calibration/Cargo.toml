@@ -16,7 +16,6 @@ critical-section = "1.2.0"
 icm42670 = "0.2.0"
 esp-println = {version="0.15.0", features = ["esp32c3"] }
 
-
 [profile.dev]
 # Rust debug is too slow.
 # For debug builds always builds with some optimization

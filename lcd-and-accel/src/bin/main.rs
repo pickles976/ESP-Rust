@@ -8,7 +8,6 @@ use esp_hal::{
 use esp_hal::ledc::{Ledc, LSGlobalClkSource, LowSpeed};
 use esp_hal::ledc::timer::{self, TimerIFace};
 use esp_hal::ledc::channel::{self, ChannelIFace};
-use esp_hal::peripherals::Peripherals;
 
 use liquid_crystal::{prelude::*};
 use liquid_crystal::LiquidCrystal;
@@ -19,7 +18,10 @@ use esp_println::println;
 use icm42670::{accelerometer::vector::F32x3, prelude::*, Address, Icm42670};
 
 use heapless::String;
-use core::{fmt::Write, pin};
+use core::{f32::consts::PI, fmt::Write, pin};
+
+mod kalman_filter;
+use kalman_filter::KalmanFilter;
 
 // You need a panic handler. Usually, you you would use esp_backtrace, panic-probe, or
 // something similar, but you can also bring your own like this:
@@ -33,9 +35,9 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 esp_bootloader_esp_idf::esp_app_desc!();
 
 const LCD_ADDRESS: u8 = 0x27;
-const LOOP_PERIOD_MILLIS: u8 = 100;
+const LOOP_PERIOD_MILLIS: u8 = 10;
 
-fn read_accelerometer(i2c: &mut I2c<'_, Blocking>) -> Result<F32x3, &'static str> {
+fn read_imu(i2c: &mut I2c<'_, Blocking>) -> Result<(F32x3, F32x3), &'static str> {
     /**
      * ~3ms
      */
@@ -44,17 +46,24 @@ fn read_accelerometer(i2c: &mut I2c<'_, Blocking>) -> Result<F32x3, &'static str
     let res = Icm42670::new(i2c, Address::Primary);
     if res.is_err() {
         println!("{:?}", res.unwrap_err());
-        return Err("Issue initializing accelerometer");
+        return Err("Issue initializing IMU");
     }
     let mut icm = res.unwrap();
 
     // read from gyro
-    let res = icm.gyro_norm();
-    if res.is_err() {
-        println!("{:?}", res.unwrap_err());
+    let res_gyro = icm.gyro_norm();
+    if res_gyro.is_err() {
+        println!("{:?}", res_gyro.unwrap_err());
         return Err("Issue reading from Gyro");
     }
-    return Ok(res.unwrap());
+
+    let res_accel = icm.accel_norm();
+    if res_accel.is_err() {
+        println!("{:?}", res_accel.unwrap_err());
+        return Err("Issue reading from Accelerometer");
+    }
+
+    return Ok((res_gyro.unwrap(), res_accel.unwrap()));
 }
 
 fn initialize_lcd(i2c: &mut I2c<'_, Blocking>){
@@ -93,12 +102,16 @@ fn main() -> ! {
 
     println!("Starting...");
 
+    let gyro_offsets: F32x3 = (-0.272630, -0.366749, -0.692388).into();
+    let x_var = 0.008859;
+    let accel_var = 0.000006;
+    let mut kf = KalmanFilter::new(gyro_offsets.x, x_var, accel_var); // tune these params
+
     let mut buf: String<64> = String::new();
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    let gyro_offsets: F32x3 = (-0.272630, -0.366749, -0.692388).into();
 
     // Initialize I2C
     let i2c_config = esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(200));
@@ -149,26 +162,37 @@ fn main() -> ! {
 
         led.toggle();
 
-        let res= read_accelerometer(&mut i2c);
+        let res= read_imu(&mut i2c);
 
         match res {
-            Ok(gyro) => {
-                let gyro_x = gyro.x - gyro_offsets.x;
+            Ok((gyro, accel)) => {
+                // let gyro_x = gyro.x - gyro_offsets.x;
+                let gyro_x = gyro.x;
+                let acc_angle = libm::atan2f(accel.y, accel.z);
+                let estimated_angle_radians = kf.update(acc_angle, gyro_x, 1.0 / LOOP_PERIOD_MILLIS as f32 );
+                let estimated_angle: f32 = estimated_angle_radians * 180.0 / PI;
+                println!("Angle: {:?}", estimated_angle);
+
                 buf.clear();
                 write!(
                     &mut buf,
-                    "G X: {:+.2}",
-                    gyro_x
+                    "X: {:+.2}",
+                    estimated_angle
                 ).unwrap();
                 write_lcd(&mut i2c, &buf);
 
-                if gyro_x > 5.0 {
-                    set_motor(80, true, &mut pwm_b, &mut forward_b, &mut backward_b);
-                } else if gyro_x < -5.0 {
-                    set_motor(80, false, &mut pwm_b, &mut forward_b, &mut backward_b);
+                if estimated_angle.abs() > 5.0 {
+                    set_motor(80, estimated_angle > 0.0, &mut pwm_b, &mut forward_b, &mut backward_b);
                 } else {
                     set_motor(0, true, &mut pwm_b, &mut forward_b, &mut backward_b);
                 }
+                // if gyro_x > 5.0 {
+                //     set_motor(80, true, &mut pwm_b, &mut forward_b, &mut backward_b);
+                // } else if gyro_x < -5.0 {
+                //     set_motor(80, false, &mut pwm_b, &mut forward_b, &mut backward_b);
+                // } else {
+                //     set_motor(0, true, &mut pwm_b, &mut forward_b, &mut backward_b);
+                // }
 
             },
             Err(string) => println!("{}", string)

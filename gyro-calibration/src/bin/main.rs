@@ -38,11 +38,18 @@ fn main() -> ! {
 
     loop {
         let gyro_norm = icm.gyro_norm().unwrap();
+        let accel_norm = icm.accel_norm().unwrap();
+
+        // println!(
+        //     "{:+.04},{:+.04},{:+.04}",
+        //     gyro_norm.x, gyro_norm.y, gyro_norm.z
+        // );
 
         println!(
             "{:+.04},{:+.04},{:+.04}",
-            gyro_norm.x, gyro_norm.y, gyro_norm.z
+            accel_norm.x, accel_norm.y, accel_norm.z
         );
+
 
         delay.delay_millis(100u32);
     }
