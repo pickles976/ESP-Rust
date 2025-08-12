@@ -11,12 +11,17 @@
     - [x] pwm
 - [x] Kalman filter
 - [x] get it to rotate when not flat
-- [ ] hook up pins for 2 motors
+- [x] try connecting GPIO 4,5,6 for motor 2
+
+- [ ] solder this shit
+- [ ] CAD ROBOT BODY
+- [ ] set up test rig with string
 
 - [ ] implement feedback system for wheel controls
+    - [ ] PID control loop
 - [ ] get it working!
 
-- [ ] RTOS
+- [ ] RTOS???
 
 
 https://crates.io/crates/liquidcrystal_i2c-rs

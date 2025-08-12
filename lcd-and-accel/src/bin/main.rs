@@ -114,13 +114,13 @@ fn main() -> ! {
 
 
     // Initialize I2C
-    let i2c_config = esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(200));
+    let i2c_config = esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(100));
     let mut i2c = esp_hal::i2c::master::I2c::new(peripherals.I2C0, i2c_config).unwrap()
         .with_sda(peripherals.GPIO10)
         .with_scl(peripherals.GPIO8);
 
     // Initialize LCD
-    initialize_lcd(&mut i2c);
+    // initialize_lcd(&mut i2c);
 
     // Set GPIO0 as an output, and set its state high initially.
     let mut led = Output::new(peripherals.GPIO7, Level::High, OutputConfig::default());
@@ -129,18 +129,7 @@ fn main() -> ! {
     let mut ledc = Ledc::new(peripherals.LEDC);
     ledc.set_global_slow_clock(LSGlobalClkSource::APBClk);
 
-    // let channel_b = configure_motor_b(&mut ledc, peripherals.GPIO0);
-    // channel_b.set_duty(90);
-
-    // MOTOR B
-    // GPIO0 motor B pwm
-    // GPIO1 motor B forward
-    // GPIO3 motor B backward
-
-    let pwm_pin_b = Output::new(peripherals.GPIO0, Level::Low, OutputConfig::default());
-    let mut forward_b = Output::new(peripherals.GPIO1, Level::High, OutputConfig::default());
-    let mut backward_b = Output::new(peripherals.GPIO3, Level::Low, OutputConfig::default());
-
+    // PWM TIMER
     let mut lstimer = ledc.timer::<LowSpeed>(timer::Number::Timer0);
     lstimer.configure(timer::config::Config {
         duty: timer::config::Duty::Duty5Bit,
@@ -148,7 +137,37 @@ fn main() -> ! {
         frequency: Rate::from_khz(1),
     }).unwrap();
 
-    let mut pwm_b = ledc.channel(channel::Number::Channel0, pwm_pin_b);
+    // MOTOR A
+    // GPIO0 motor A pwm
+    // GPIO1 motor A forward
+    // GPIO3 motor A backward
+    let pwm_pin_a = Output::new(peripherals.GPIO0, Level::Low, OutputConfig::default());
+    let mut forward_a = Output::new(peripherals.GPIO1, Level::High, OutputConfig::default());
+    let mut backward_a = Output::new(peripherals.GPIO3, Level::Low, OutputConfig::default());
+
+    let mut pwm_a = ledc.channel(channel::Number::Channel0, pwm_pin_a);
+    pwm_a.configure(channel::config::Config {
+        timer: &lstimer,
+        duty_pct: 0,
+        pin_config: channel::config::PinConfig::PushPull,
+    }).unwrap();
+
+    // MOTOR B
+    // GPIO4 motor B pwm
+    // GPIO5 motor B forward
+    // GPIO6 motor B backward
+    let pwm_pin_b = Output::new(peripherals.GPIO4, Level::Low, OutputConfig::default());
+    let mut forward_b = Output::new(peripherals.GPIO5, Level::High, OutputConfig::default());
+    let mut backward_b = Output::new(peripherals.GPIO6, Level::Low, OutputConfig::default());
+
+    // let mut lstimer = ledc.timer::<LowSpeed>(timer::Number::Timer);
+    // lstimer.configure(timer::config::Config {
+    //     duty: timer::config::Duty::Duty5Bit,
+    //     clock_source: timer::LSClockSource::APBClk,
+    //     frequency: Rate::from_khz(1),
+    // }).unwrap();
+
+    let mut pwm_b = ledc.channel(channel::Number::Channel1, pwm_pin_b);
     pwm_b.configure(channel::config::Config {
         timer: &lstimer,
         duty_pct: 0,
@@ -168,35 +187,34 @@ fn main() -> ! {
             Ok((gyro, accel)) => {
                 // let gyro_x = gyro.x - gyro_offsets.x;
                 let gyro_x = gyro.x;
-                let acc_angle = libm::atan2f(accel.y, accel.z);
+                // let acc_angle = libm::atan2f(accel.z, accel.y); // charging port down
+                let acc_angle = libm::atan2f(accel.y, accel.z); // lying flat
                 let estimated_angle_radians = kf.update(acc_angle, gyro_x, 1.0 / LOOP_PERIOD_MILLIS as f32 );
                 let estimated_angle: f32 = estimated_angle_radians * 180.0 / PI;
                 println!("Angle: {:?}", estimated_angle);
 
-                buf.clear();
-                write!(
-                    &mut buf,
-                    "X: {:+.2}",
-                    estimated_angle
-                ).unwrap();
-                write_lcd(&mut i2c, &buf);
+                // buf.clear();
+                // write!(
+                //     &mut buf,
+                //     "X: {:+.2}",
+                //     estimated_angle
+                // ).unwrap();
+                // write_lcd(&mut i2c, &buf);
 
                 if estimated_angle.abs() > 5.0 {
+                    set_motor(80, estimated_angle > 0.0, &mut pwm_a, &mut forward_a, &mut backward_a);
                     set_motor(80, estimated_angle > 0.0, &mut pwm_b, &mut forward_b, &mut backward_b);
                 } else {
+                    set_motor(0, true, &mut pwm_a, &mut forward_a, &mut backward_a);
                     set_motor(0, true, &mut pwm_b, &mut forward_b, &mut backward_b);
                 }
-                // if gyro_x > 5.0 {
-                //     set_motor(80, true, &mut pwm_b, &mut forward_b, &mut backward_b);
-                // } else if gyro_x < -5.0 {
-                //     set_motor(80, false, &mut pwm_b, &mut forward_b, &mut backward_b);
-                // } else {
-                //     set_motor(0, true, &mut pwm_b, &mut forward_b, &mut backward_b);
-                // }
 
             },
             Err(string) => println!("{}", string)
         }
+
+        set_motor(80, true, &mut pwm_a, &mut forward_a, &mut backward_a);
+        set_motor(80, true, &mut pwm_b, &mut forward_b, &mut backward_b);
 
         // lcd.write(&mut delay, Command(Clear))
         //     .write(&mut delay, Text(&buf));
