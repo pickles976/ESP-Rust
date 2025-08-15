@@ -35,7 +35,9 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 esp_bootloader_esp_idf::esp_app_desc!();
 
 const LCD_ADDRESS: u8 = 0x27;
+const LCD_PERIOD_MILLIS: u8 = 100;
 const LOOP_PERIOD_MILLIS: u8 = 10;
+const TARGET_ANGLE: f32 = -90.0;
 
 fn read_imu(i2c: &mut I2c<'_, Blocking>) -> Result<(F32x3, F32x3), &'static str> {
     /**
@@ -120,7 +122,7 @@ fn main() -> ! {
         .with_scl(peripherals.GPIO8);
 
     // Initialize LCD
-    // initialize_lcd(&mut i2c);
+    initialize_lcd(&mut i2c);
 
     // Set GPIO0 as an output, and set its state high initially.
     let mut led = Output::new(peripherals.GPIO7, Level::High, OutputConfig::default());
@@ -156,16 +158,9 @@ fn main() -> ! {
     // GPIO4 motor B pwm
     // GPIO5 motor B forward
     // GPIO6 motor B backward
-    let pwm_pin_b = Output::new(peripherals.GPIO4, Level::Low, OutputConfig::default());
-    let mut forward_b = Output::new(peripherals.GPIO5, Level::High, OutputConfig::default());
-    let mut backward_b = Output::new(peripherals.GPIO6, Level::Low, OutputConfig::default());
-
-    // let mut lstimer = ledc.timer::<LowSpeed>(timer::Number::Timer);
-    // lstimer.configure(timer::config::Config {
-    //     duty: timer::config::Duty::Duty5Bit,
-    //     clock_source: timer::LSClockSource::APBClk,
-    //     frequency: Rate::from_khz(1),
-    // }).unwrap();
+    let pwm_pin_b = Output::new(peripherals.GPIO6, Level::Low, OutputConfig::default());
+    let mut forward_b = Output::new(peripherals.GPIO4, Level::High, OutputConfig::default());
+    let mut backward_b = Output::new(peripherals.GPIO5, Level::Low, OutputConfig::default());
 
     let mut pwm_b = ledc.channel(channel::Number::Channel1, pwm_pin_b);
     pwm_b.configure(channel::config::Config {
@@ -174,6 +169,8 @@ fn main() -> ! {
         pin_config: channel::config::PinConfig::PushPull,
     }).unwrap();
 
+
+    let mut delay_lcd = Instant::now();
 
     loop {
 
@@ -187,23 +184,29 @@ fn main() -> ! {
             Ok((gyro, accel)) => {
                 // let gyro_x = gyro.x - gyro_offsets.x;
                 let gyro_x = gyro.x;
-                // let acc_angle = libm::atan2f(accel.z, accel.y); // charging port down
+                // let acc_angle = libm::atan2f(accel.z, accel.y) - PI; // charging port up
                 let acc_angle = libm::atan2f(accel.y, accel.z); // lying flat
                 let estimated_angle_radians = kf.update(acc_angle, gyro_x, 1.0 / LOOP_PERIOD_MILLIS as f32 );
                 let estimated_angle: f32 = estimated_angle_radians * 180.0 / PI;
-                println!("Angle: {:?}", estimated_angle);
 
-                // buf.clear();
-                // write!(
-                //     &mut buf,
-                //     "X: {:+.2}",
-                //     estimated_angle
-                // ).unwrap();
-                // write_lcd(&mut i2c, &buf);
+                println!("Angle: {:?}", estimated_angle - TARGET_ANGLE);
 
-                if estimated_angle.abs() > 5.0 {
-                    set_motor(80, estimated_angle > 0.0, &mut pwm_a, &mut forward_a, &mut backward_a);
-                    set_motor(80, estimated_angle > 0.0, &mut pwm_b, &mut forward_b, &mut backward_b);
+                if delay_lcd.elapsed() > Duration::from_millis(LCD_PERIOD_MILLIS.into()) {
+                    buf.clear();
+                    write!(
+                        &mut buf,
+                        "ANGLE: {:+.2}",
+                        estimated_angle
+                    ).unwrap();
+                    write_lcd(&mut i2c, &buf);
+                    delay_lcd = Instant::now();
+                }
+
+
+                let delta_angle = estimated_angle - TARGET_ANGLE;
+                if delta_angle.abs() > 1.0 {
+                    set_motor(100, delta_angle < 0.0, &mut pwm_a, &mut forward_a, &mut backward_a);
+                    set_motor(100, delta_angle < 0.0, &mut pwm_b, &mut forward_b, &mut backward_b);
                 } else {
                     set_motor(0, true, &mut pwm_a, &mut forward_a, &mut backward_a);
                     set_motor(0, true, &mut pwm_b, &mut forward_b, &mut backward_b);
@@ -212,18 +215,6 @@ fn main() -> ! {
             },
             Err(string) => println!("{}", string)
         }
-
-        set_motor(80, true, &mut pwm_a, &mut forward_a, &mut backward_a);
-        set_motor(80, true, &mut pwm_b, &mut forward_b, &mut backward_b);
-
-        // lcd.write(&mut delay, Command(Clear))
-        //     .write(&mut delay, Text(&buf));
-        
-        // println!(
-        //     "ACCEL  =  X: {:+.04} Y: {:+.04} Z: {:+.04}\t\tGYRO  =  X: {:+.04} Y: {:+.04} Z: {:+.04}",
-        //     accel_norm.x, accel_norm.y, accel_norm.z, gyro_norm.x, gyro_norm.y, gyro_norm.z
-        // );
-
 
         while delay_start.elapsed() < Duration::from_millis(LOOP_PERIOD_MILLIS.into()) {}
     }

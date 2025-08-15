@@ -13,8 +13,11 @@
 - [x] get it to rotate when not flat
 - [x] try connecting GPIO 4,5,6 for motor 2
 
-- [ ] solder this shit
-- [ ] CAD ROBOT BODY
+- [x] solder this shit
+- [x] CAD ROBOT BODY
+- [ ] print robot body
+
+- [ ] assemble rig and adjust pinouts so that wheels turn in the right direction (in the direction the robot is leaning)
 - [ ] set up test rig with string
 
 - [ ] implement feedback system for wheel controls
