@@ -24,21 +24,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
-name = "balancing-robot"
-version = "0.1.0"
-dependencies = [
- "critical-section",
- "esp-bootloader-esp-idf",
- "esp-hal",
- "esp-println",
- "heapless",
- "icm42670",
- "libm",
- "liquid_crystal",
- "shared-bus",
-]
-
-[[package]]
 name = "basic-toml"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -762,19 +747,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "kalman-tuning"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-println",
+ "heapless",
+ "icm42670",
+ "libm",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
-
-[[package]]
-name = "liquid_crystal"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8b66e0794bc41fc20f70a92e9a9a69ff0e4f411db40dcd1002913e585a031e9"
-dependencies = [
- "embedded-hal 1.0.0",
-]
 
 [[package]]
 name = "litrs"
@@ -989,16 +978,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared-bus"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6b8d3f0e34309c22ca4a9a27d24fa493e31573485f3493802b75b9d706756a6"
-dependencies = [
- "embedded-hal 0.2.7",
- "nb 1.1.0",
-]
-
-[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1033,9 +1012,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.104"
+version = "2.0.105"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17b6f705963418cdb9927482fa304bc562ece2fdd4f616084c50b7023b435a40"
+checksum = "7bc3fcb250e53458e712715cf74285c1f889686520d79294a9ef3bd7aa1fc619"
 dependencies = [
  "proc-macro2",
  "quote",

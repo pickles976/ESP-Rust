@@ -1,11 +1,11 @@
 [package]
 edition      = "2021"
-name         = "balancing-robot"
+name         = "kalman-tuning"
 rust-version = "1.86"
 version      = "0.1.0"
 
 [[bin]]
-name = "balancing-robot"
+name = "kalman-tuning"
 path = "./src/bin/main.rs"
 
 [dependencies]
@@ -14,11 +14,11 @@ esp-hal                = { version = "=1.0.0-rc.0", features = ["esp32c3", "unst
 esp-println = { version = "0.15.0", features = ["esp32c3"] }
 
 critical-section = "1.2.0"
-liquid_crystal = "0.2.0"
 icm42670 = "0.2.0"
-shared-bus = "0.3.1"
 heapless = "0.8.0"
 libm = "0.2"
+
+
 
 [profile.dev]
 # Rust debug is too slow.
