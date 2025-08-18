@@ -61,7 +61,15 @@ impl KalmanFilter {
         self.angle
     }
 
+    pub fn update_no_input(&mut self, dt: f32) -> f32 {
+        self.update(self.get_angle(), self.get_rate(), dt)
+    }
+
     pub fn get_angle(&self) -> f32 {
         self.angle
+    }
+
+    pub fn get_rate(&self) -> f32 {
+        self.rate
     }
 }

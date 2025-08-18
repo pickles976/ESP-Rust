@@ -28,8 +28,9 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 esp_bootloader_esp_idf::esp_app_desc!();
 
 const LOOP_PERIOD_MILLIS: u8 = 10;
+const RATE_THRESH: f32 = 3.0;
 
-fn init_imu(i2c: &mut I2c<'static, Blocking>) -> Result<Icm42670<I2c<'static, Blocking>>, &'static str> {
+fn init_imu<'a>(i2c: &'a mut I2c<'static, Blocking>) -> Result<Icm42670<&'a mut I2c<'static, Blocking>>, &'static str> {
 
     let res = Icm42670::new(i2c, Address::Primary);
     if res.is_err() {
@@ -68,22 +69,23 @@ fn init_imu(i2c: &mut I2c<'static, Blocking>) -> Result<Icm42670<I2c<'static, Bl
         return Err("Issue setting Gyro ODR");
     }
 
-    return imu
+    return Ok(imu)
 }
 
-fn read_imu(imu: &mut Icm42670<I2c<'static, Blocking>>) -> Result<(F32x3, F32x3), &'static str> {
+fn read_imu(imu: &mut Icm42670<&mut I2c<'static, Blocking>>) -> Result<(F32x3, F32x3), &'static str> {
     // ~3ms
 
     // read from gyro
     let res_gyro = imu.gyro_norm();
     if res_gyro.is_err() {
-        println!("{:?}", res_gyro.unwrap_err());
+        res_gyro.unwrap_err();
+        // println!("{:?}", res_gyro.unwrap_err());
         return Err("Issue reading from Gyro");
     }
 
     let res_accel = imu.accel_norm();
     if res_accel.is_err() {
-        println!("{:?}", res_accel.unwrap_err());
+        // println!("{:?}", res_accel.unwrap_err());
         return Err("Issue reading from Accelerometer");
     }
 
@@ -95,13 +97,11 @@ fn main() -> ! {
 
     println!("Starting...");
 
-    // Static string buffer
-    let mut buf: String<64> = String::new();
-
-    let gyro_offsets: F32x3 = (-0.272630, -0.366749, -0.692388).into();
-    let x_var = 0.008859;
-    let accel_var = 0.000006;
-    let mut kf = KalmanFilter::new(gyro_offsets.x, x_var, accel_var); // tune these params
+    // let gyro_offsets: F32x3 = (-0.272630, -0.366749, -0.692388).into();
+    let theta_var = 0.007656;
+    let gyro_bias = 0.0001;
+    let r_measure = 0.000025; // Variance in angle measurement from accelerometer
+    let mut kf = KalmanFilter::new(theta_var, gyro_bias, r_measure); // tune these params
 
     // Init Peripherals
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
@@ -114,14 +114,14 @@ fn main() -> ! {
         .with_scl(peripherals.GPIO8);
 
     // Set up accelerometer (consumes accelerometer)
-    let res = init_imu(&mut i2c).unwrap();
+    let mut imu = init_imu(&mut i2c).unwrap();
 
     let mut counter: i32 = 0;
+    let dt = 1.0 / (1000.0 / LOOP_PERIOD_MILLIS as f32);
 
     loop {
 
         let delay_start = Instant::now();
-
         let res= read_imu(&mut imu);
 
         match res {
@@ -139,8 +139,13 @@ fn main() -> ! {
                 //     accel.x, accel.y, accel.z
                 // );
 
-                let dt = 1.0 / LOOP_PERIOD_MILLIS as f32;
-                let gyro_x = gyro.x;
+                let mut gyro_x = gyro.x;
+
+                // ignore huge variations
+                // let rate_radians = PI * kf.get_rate() / 180.0;
+                // if (rate_radians - gyro_x).abs() > RATE_THRESH {
+                //     gyro_x = rate_radians;
+                // }
 
                 let acc_angle = libm::atan2f(accel.y, accel.z); // lying flat
                 let estimated_angle_radians = kf.update(acc_angle, gyro_x, dt );
@@ -148,12 +153,16 @@ fn main() -> ! {
 
                 println!("{:?},{:?},{:?},{:?}", 
                     (counter as f32 * dt), // timestamp
-                    acc_angle * 180.0 / PI, // raw angle (degrees)
-                    gyro_x * 180.0 / PI, // raw angular velocity (degrees)
-                    estimated_angle); // Kalman filtered angle (degrees)
+                    acc_angle, // raw angle (degrees)
+                    gyro_x, // raw angular velocity (degrees)
+                    estimated_angle_radians); // Kalman filtered angle (degrees)
+                // println!("{}", estimated_angle);
 
             },
-            Err(string) => println!("{}", string)
+            // Err(string) => println!("{}", string)
+            Err(string) => {
+                kf.update_no_input(dt);
+            }
         }
 
         counter += 1;
