@@ -94,8 +94,8 @@ fn main() -> ! {
 
         let delay_start = Instant::now();
 
-        // set_motor(duty, false, &mut pwm_a, &mut forward_a, &mut backward_a); // 60
-        set_motor(duty, false, &mut pwm_b, &mut forward_b, &mut backward_b); // 66
+        set_motor(duty, false, &mut pwm_a, &mut forward_a, &mut backward_a); // 60
+        // set_motor(duty, false, &mut pwm_b, &mut forward_b, &mut backward_b); // 66
 
         while delay_start.elapsed() < Duration::from_millis(LOOP_PERIOD_MILLIS.into()) {}
     }

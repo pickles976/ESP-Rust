@@ -7,7 +7,7 @@ use esp_hal::{
 
 use esp_println::println;
 
-use icm42670::{accelerometer::vector::F32x3, prelude::*, Address, Icm42670, AccelOdr, GyroOdr};
+use icm42670::{accelerometer::vector::F32x3, prelude::*, Address, Icm42670, AccelOdr, GyroOdr, AccelRange, GyroRange};
 
 use core::{f32::consts::PI};
 
@@ -15,6 +15,9 @@ use heapless::String;
 
 mod kalman_filter;
 use kalman_filter::KalmanFilter;
+
+mod complimentary_filter;
+use complimentary_filter::ComplementaryFilter;
 
 // You need a panic handler. Usually, you you would use esp_backtrace, panic-probe, or
 // something similar, but you can also bring your own like this:
@@ -27,8 +30,10 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-const LOOP_PERIOD_MILLIS: u8 = 10;
+const LOOP_PERIOD_MILLIS: u8 = 3;
 const RATE_THRESH: f32 = 3.0;
+
+const GYRO_SENSITIVITY: f32 = 131.0;
 
 fn init_imu<'a>(i2c: &'a mut I2c<'static, Blocking>) -> Result<Icm42670<&'a mut I2c<'static, Blocking>>, &'static str> {
 
@@ -57,17 +62,21 @@ fn init_imu<'a>(i2c: &'a mut I2c<'static, Blocking>) -> Result<Icm42670<&'a mut 
 
 
     // Set ODR to 800 Hz for fast reading
-    let res = imu.set_accel_odr(AccelOdr::Hz800);
+    let res = imu.set_accel_odr(AccelOdr::Hz1600);
     if res.is_err() {
         println!("{:?}", res.unwrap_err());
         return Err("Issue setting Accelerometer ODR");
     }
 
-    let res = imu.set_gyro_odr(GyroOdr::Hz800);
+    imu.set_accel_range(AccelRange::G4);
+
+    let res = imu.set_gyro_odr(GyroOdr::Hz1600);
     if res.is_err() {
         println!("{:?}", res.unwrap_err());
         return Err("Issue setting Gyro ODR");
     }
+
+    imu.set_gyro_range(GyroRange::Deg250);
 
     return Ok(imu)
 }
@@ -97,11 +106,13 @@ fn main() -> ! {
 
     println!("Starting...");
 
+    let gyro_mean: f32 = -0.3;
     // let gyro_offsets: F32x3 = (-0.272630, -0.366749, -0.692388).into();
-    let theta_var = 0.007656;
-    let gyro_bias = 0.0001;
-    let r_measure = 0.000025; // Variance in angle measurement from accelerometer
+    let theta_var = 0.0001;
+    let gyro_bias = 0.03;
+    let r_measure = 0.0002; // Variance in angle measurement from accelerometer
     let mut kf = KalmanFilter::new(theta_var, gyro_bias, r_measure); // tune these params
+    // let mut kf = ComplementaryFilter::new(0.98);
 
     // Init Peripherals
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
@@ -118,6 +129,16 @@ fn main() -> ! {
 
     let mut counter: i32 = 0;
     let dt = 1.0 / (1000.0 / LOOP_PERIOD_MILLIS as f32);
+
+    let res= read_imu(&mut imu);
+    match res {
+        Ok((_, accel)) => {
+            kf.set_angle(libm::atan2f(accel.y, accel.z))
+        },
+        Err(_) => {
+            kf.set_angle(-PI / 2.0);
+        }
+    }
 
     loop {
 
@@ -139,13 +160,7 @@ fn main() -> ! {
                 //     accel.x, accel.y, accel.z
                 // );
 
-                let mut gyro_x = gyro.x;
-
-                // ignore huge variations
-                // let rate_radians = PI * kf.get_rate() / 180.0;
-                // if (rate_radians - gyro_x).abs() > RATE_THRESH {
-                //     gyro_x = rate_radians;
-                // }
+                let gyro_x = (gyro.x - gyro_mean) / GYRO_SENSITIVITY;
 
                 let acc_angle = libm::atan2f(accel.y, accel.z); // lying flat
                 let estimated_angle_radians = kf.update(acc_angle, gyro_x, dt );
@@ -153,9 +168,9 @@ fn main() -> ! {
 
                 println!("{:?},{:?},{:?},{:?}", 
                     (counter as f32 * dt), // timestamp
-                    acc_angle, // raw angle (degrees)
+                    acc_angle * 180.0 / PI, // raw angle (degrees)
                     gyro_x, // raw angular velocity (degrees)
-                    estimated_angle_radians); // Kalman filtered angle (degrees)
+                    estimated_angle); // Kalman filtered angle (degrees)
                 // println!("{}", estimated_angle);
 
             },

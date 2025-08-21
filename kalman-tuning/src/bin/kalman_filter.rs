@@ -69,6 +69,10 @@ impl KalmanFilter {
         self.angle
     }
 
+    pub fn set_angle(&mut self, angle: f32) {
+        self.angle = angle;
+    }
+
     pub fn get_rate(&self) -> f32 {
         self.rate
     }

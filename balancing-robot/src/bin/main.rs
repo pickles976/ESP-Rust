@@ -35,18 +35,22 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 esp_bootloader_esp_idf::esp_app_desc!();
 
 const LOOP_PERIOD_MILLIS: u8 = 3;
-const TARGET_ANGLE: f32 = -90.0;
+const TARGET_ANGLE: f32 = -94.0;
 
-const DUTY_MIN_A: i32 = 60 - 2;
-const DUTY_MIN_B: i32 = 66 - 2;
+const DUTY_MIN_A: i32 = 70 - 25;
+const DUTY_MIN_B: i32 = 66 - 25;
 const DUTY_MAX: i32 = 100;
-
 
 const K_P: f32 = 0.2;
 const K_I: f32 = 0.0;
 const K_D: f32 = 0.001;
 
+const DEADZONE: f32 = 2.0;
+
 const MAX_ANGLE: f32 = 75.0;
+
+
+const GYRO_SENSITIVITY: f32 = 131.0;
 
 
 pub fn lerp_i32(a: i32, b: i32, t: f32) -> i32 {
@@ -87,7 +91,7 @@ fn init_imu<'a>(i2c: &'a mut I2c<'static, Blocking>) -> Result<Icm42670<&'a mut 
         return Err("Issue setting Accelerometer ODR");
     }
 
-    imu.set_accel_range(AccelRange::G2);
+    imu.set_accel_range(AccelRange::G4);
 
     let res = imu.set_gyro_odr(GyroOdr::Hz1600);
     if res.is_err() {
@@ -95,7 +99,7 @@ fn init_imu<'a>(i2c: &'a mut I2c<'static, Blocking>) -> Result<Icm42670<&'a mut 
         return Err("Issue setting Gyro ODR");
     }
 
-    imu.set_gyro_range(GyroRange::default());
+    imu.set_gyro_range(GyroRange::Deg250);
 
     return Ok(imu)
 }
@@ -135,9 +139,10 @@ fn main() -> ! {
 
     println!("Starting...");
     
-    let theta_var = 0.007656;
-    let gyro_bias = 0.0001;
-    let r_measure = 0.00025; // Variance in angle measurement from accelerometer
+    let gyro_mean: f32 = -0.3;
+    let theta_var = 0.0001;
+    let gyro_bias = 0.03;
+    let r_measure = 0.0002; // Variance in angle measurement from accelerometer
     let mut kf = KalmanFilter::new(theta_var, gyro_bias, r_measure); // tune these params
 
     let mut controller = Controller::new(TARGET_ANGLE, K_P, K_I, K_D);
@@ -201,7 +206,7 @@ fn main() -> ! {
     let mut counter: i32 = 0;
 
     let alpha = 0.3;
-    let mut acc_angle_last = PI;
+    let mut acc_angle_last = PI / 2.0;
 
     loop {
 
@@ -212,7 +217,7 @@ fn main() -> ! {
         match res {
             Ok((gyro, accel)) => {
 
-                let gyro_x = gyro.x;
+                let gyro_x = (gyro.x - gyro_mean) / GYRO_SENSITIVITY;
 
                 let mut acc_angle = libm::atan2f(accel.y, accel.z); // lying flat
 
@@ -235,13 +240,15 @@ fn main() -> ! {
                 // println!("DUTY PCT A: {:?}", duty_a);
                 // println!("DUTY PCT B: {:?}", duty_b);
 
-                // if (estimated_angle - TARGET_ANGLE).abs() < MAX_ANGLE {
-                set_motor(duty_a, output > 0.0, &mut pwm_a, &mut forward_a, &mut backward_a);
-                set_motor(duty_b,  output > 0.0, &mut pwm_b, &mut forward_b, &mut backward_b);
-                // } else {
-                //     set_motor(0, true, &mut pwm_a, &mut forward_a, &mut backward_a);
-                //     set_motor(0,  true, &mut pwm_b, &mut forward_b, &mut backward_b);
-                // }
+                if (estimated_angle - TARGET_ANGLE).abs() < DEADZONE {
+                    set_motor(0, true, &mut pwm_a, &mut forward_a, &mut backward_a);
+                    set_motor(0,  true, &mut pwm_b, &mut forward_b, &mut backward_b);
+                } else {
+                    set_motor(duty_a, output > 0.0, &mut pwm_a, &mut forward_a, &mut backward_a);
+                    set_motor(duty_b,  output > 0.0, &mut pwm_b, &mut forward_b, &mut backward_b);
+                }
+
+                // println!("{}", output);
 
                 println!("{:?},{:?},{:?},{:?}", 
                     (counter as f32 * dt), // timestamp
