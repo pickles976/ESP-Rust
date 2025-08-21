@@ -29,7 +29,7 @@ plt.figure(figsize=(10, 6))
 # Plot accel_raw and kalman_angle with t as the x-axis
 plt.figure(figsize=(10, 6))
 plt.plot(df['t'], df['accel_raw'], label='Accel Raw')
-plt.plot(df['t'], df['gyro_raw'], label='Gyro Raw', linestyle='dashed')
+# plt.plot(df['t'], df['gyro_raw'], label='Gyro Raw', linestyle='dashed')
 # plt.plot(df['t'], df['angle'], label='Gyro Angle', linestyle='dashed')
 plt.plot(df['t'], df['kalman_angle'], label='Kalman Angle')
 

@@ -1,49 +1,22 @@
-# TODO:
+# README
 
-- [x] build and run
-- [x] blinky lights
-- [x] serial print
-- [x] communicate with display
-    - [x] get I2C object building
-    - [x] try to write a single character to the screen manually
-    - [x] pass in to liquid crystal library
-- [x] control H-bridge
-    - [x] pwm
-- [x] Kalman filter
-- [x] get it to rotate when not flat
-- [x] try connecting GPIO 4,5,6 for motor 2
+Stuff of note:
+1. Find the `Sensitivity Scale Factor` for your gyroscope from the IMU datasheet
+2. Do sanity tests on your gyro and accelerometer
+3. Use pandas to find gyro bias and initial guesses for variance on measurement readings
+4. Plot your raw angle, cumulative angle calculated from gyro, and kalman output. Kalman output should be smoother and more stable than raw angle from accelerometer, and should have minimal lag (10ms max)
+5. Make sure your elapsed time for the control loop is small. Less than 10ms
+6. Calibrate your motors, at what duty to they turn on?
+7. Make sure there is a deadzone where motors turn off (2 degrees or so?)
+8. Pick a stable point as your desired balance target
+9. Use the correct voltage for your motors!!!
+10. Be aware of vibrations! Try to prevent these as much as possible in your chassis design
 
-- [x] solder this shit
-- [x] CAD ROBOT BODY
-- [x] print robot body
-
-- [x] assemble rig and adjust pinouts so that wheels turn in the right direction (in the direction the robot is leaning)
-- [x] set up test rig with string
-
-- [x] implement feedback system for wheel controls
-    - [x] PID control loop
-
-- [ ] redesign car
-
-- [ ] make a wheel calibration package
-    - [ ] find the duty % when the motor actually turns on
-    - [ ] take slow-mo video of speed at 70%, 80%, 90% and 100%
-    - [ ] figure out "gear ratio" for small thetas (imagine the wheel is rotating inside a larger wheel with the IMU at the center)
-
-- [ ] make a kalman filter analysis package
-    - [ ] record raw rotation data
-    - [ ] record raw angular momentum data
-    - [ ] record kalman filter
-    - [ ] plot all 3 to see delay
-    - [ ] figure out how to reduce delay
-
-- [ ] configure gyro
 
 ```bash
 cargo run --bin balancing-robot
 ```
 
-https://crates.io/crates/liquidcrystal_i2c-rs
 
 https://github.com/esp-rs/esp-hal/tree/main/examples/peripheral
 
