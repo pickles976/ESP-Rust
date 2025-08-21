@@ -41,7 +41,7 @@ const DUTY_MIN_A: i32 = 70 - 25;
 const DUTY_MIN_B: i32 = 66 - 25;
 const DUTY_MAX: i32 = 100;
 
-const K_P: f32 = 0.2;
+const K_P: f32 = 0.25;
 const K_I: f32 = 0.0;
 const K_D: f32 = 0.001;
 
